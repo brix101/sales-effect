@@ -1,0 +1,36 @@
+{
+  "name": "sales-effect",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx --watch src/main.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "effect-language-service patch",
+    "db:generate": "NODE_OPTIONS='--import tsx' drizzle-kit generate",
+    "db:migrate": "NODE_OPTIONS='--import tsx' drizzle-kit migrate",
+    "db:push": "NODE_OPTIONS='--import tsx' drizzle-kit push",
+    "db:studio": "NODE_OPTIONS='--import tsx' drizzle-kit studio"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.13.1",
+  "dependencies": {
+    "@effect/sql-pg": "^0.50.3",
+    "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.1",
+    "effect": "^3.19.18",
+    "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.74.0",
+    "@types/node": "^25.3.0",
+    "@types/pg": "^8.16.0",
+    "drizzle-kit": "^0.31.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
