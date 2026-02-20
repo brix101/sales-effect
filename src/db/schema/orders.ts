@@ -5,7 +5,10 @@ import { products } from "./products.js";
 
 export const orders = pgTable("orders", (t) => ({
   id: t.uuid().primaryKey().notNull().defaultRandom(),
-  customerId: t.uuid().references(() => customers.id, { onDelete: "restrict" }),
+  customerId: t
+    .uuid()
+    .references(() => customers.id, { onDelete: "restrict" })
+    .notNull(),
   createdAt: t.timestamp().defaultNow().notNull(),
   updatedAt: t
     .timestamp({ mode: "string", withTimezone: true })
@@ -22,8 +25,14 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
 
 export const ordersItems = pgTable("orders_items", (t) => ({
   id: t.uuid().primaryKey().notNull().defaultRandom(),
-  orderId: t.uuid().references(() => orders.id, { onDelete: "cascade" }),
-  productId: t.uuid().references(() => products.id, { onDelete: "restrict" }),
+  orderId: t
+    .uuid()
+    .references(() => orders.id, { onDelete: "cascade" })
+    .notNull(),
+  productId: t
+    .uuid()
+    .references(() => products.id, { onDelete: "restrict" })
+    .notNull(),
   price: t.real().default(0),
   quantity: t.integer().default(0),
 }));

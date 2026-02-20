@@ -175,7 +175,7 @@ const makeService = () =>
       logger: {
         logQuery: (query, params) => {
           Effect.runSync(
-            Effect.logInfo(`[Drizzle Query]: ${query} [${params}]`).pipe(
+            Effect.logInfo(`Query:${query} -- params:[${params}]`).pipe(
               Effect.provide(Logger.pretty),
             ),
           );
