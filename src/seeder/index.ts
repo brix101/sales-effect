@@ -14,6 +14,7 @@ const PRODUCT_COUNT = 5000;
 const BATCH_SIZE = 100;
 
 const program = Effect.gen(function* () {
+  const timeStart = Date.now();
   const db = yield* Database;
 
   yield* Effect.log("Seeding database...");
@@ -143,6 +144,14 @@ const program = Effect.gen(function* () {
     `Created ${createdProducts.length} products.`,
     `Created ${totalOrders} orders with ${totalOrderedItems} items.`,
   );
+
+  const timeEnd = Date.now();
+  const duration = (timeEnd - timeStart) / 60000;
+  const hours = Math.floor(duration / 60);
+  const minutes = Math.floor(duration % 60);
+  const seconds = Math.floor((duration * 60) % 60);
+
+  yield* Effect.log(`Total seeding time: ${hours}h ${minutes}m ${seconds}s`);
 }).pipe(Effect.provide(DatabaseLive), Effect.provide(Logger.pretty));
 
 Effect.runPromise(program);
