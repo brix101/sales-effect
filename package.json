@@ -9,6 +9,7 @@
     "dev": "tsx --watch src/main.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "effect-language-service patch",
+    "seed": "tsx src/seeder/index.ts",
     "db:generate": "NODE_OPTIONS='--import tsx' drizzle-kit generate",
     "db:migrate": "NODE_OPTIONS='--import tsx' drizzle-kit migrate",
     "db:push": "NODE_OPTIONS='--import tsx' drizzle-kit push",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@effect/language-service": "^0.74.0",
+    "@faker-js/faker": "9.9.0",
     "@types/node": "^25.3.0",
     "@types/pg": "^8.16.0",
     "drizzle-kit": "^0.31.9",

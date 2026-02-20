@@ -3,7 +3,7 @@ import { pgTable } from "drizzle-orm/pg-core";
 import { customers } from "./customers.js";
 import { products } from "./products.js";
 
-export const sales = pgTable("sales", (t) => ({
+export const orders = pgTable("orders", (t) => ({
   id: t.uuid().primaryKey().notNull().defaultRandom(),
   customerId: t.uuid().references(() => customers.id, { onDelete: "restrict" }),
   createdAt: t.timestamp().defaultNow().notNull(),
@@ -12,29 +12,29 @@ export const sales = pgTable("sales", (t) => ({
     .$onUpdateFn(() => sql`now()`),
 }));
 
-export const salesRelations = relations(sales, ({ one, many }) => ({
+export const ordersRelations = relations(orders, ({ one, many }) => ({
   customer: one(customers, {
-    fields: [sales.customerId],
+    fields: [orders.customerId],
     references: [customers.id],
   }),
-  items: many(salesItems),
+  items: many(ordersItems),
 }));
 
-export const salesItems = pgTable("sales_items", (t) => ({
+export const ordersItems = pgTable("orders_items", (t) => ({
   id: t.uuid().primaryKey().notNull().defaultRandom(),
-  salesId: t.uuid().references(() => sales.id, { onDelete: "cascade" }),
+  orderId: t.uuid().references(() => orders.id, { onDelete: "cascade" }),
   productId: t.uuid().references(() => products.id, { onDelete: "restrict" }),
   price: t.real().default(0),
   quantity: t.integer().default(0),
 }));
 
-export const salesItemsRelations = relations(salesItems, ({ one }) => ({
-  sales: one(sales, {
-    fields: [salesItems.salesId],
-    references: [sales.id],
+export const ordersItemsRelations = relations(ordersItems, ({ one }) => ({
+  orders: one(orders, {
+    fields: [ordersItems.orderId],
+    references: [orders.id],
   }),
   product: one(products, {
-    fields: [salesItems.productId],
+    fields: [ordersItems.productId],
     references: [products.id],
   }),
 }));

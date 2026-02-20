@@ -1,6 +1,6 @@
 import { pgTable } from "drizzle-orm/pg-core";
 
-export const customers = pgTable("courses", (t) => ({
+export const customers = pgTable("customers", (t) => ({
   id: t.uuid().primaryKey().notNull().defaultRandom(),
   name: t.varchar().notNull(),
   email: t.varchar().notNull(),

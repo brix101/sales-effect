@@ -11,6 +11,7 @@ import {
   Effect,
   Exit,
   Layer,
+  Logger,
   Option,
   Redacted,
   Runtime,
@@ -51,9 +52,9 @@ export class TransactionContext extends Context.Tag("TransactionContext")<
 
 export class DatabaseError extends Data.TaggedError("DatabaseError")<{
   readonly type:
-  | "unique_violation"
-  | "foreign_key_violation"
-  | "connection_error";
+    | "unique_violation"
+    | "foreign_key_violation"
+    | "connection_error";
   readonly cause: pg.DatabaseError;
 }> {
   public override toString() {
@@ -87,7 +88,7 @@ export class DatabaseConnectionLostError extends Data.TaggedError(
 )<{
   cause: unknown;
   message: string;
-}> { }
+}> {}
 
 export type Config = {
   url: Redacted.Redacted;
@@ -97,7 +98,11 @@ export type Config = {
 const makeService = () =>
   Effect.gen(function* () {
     const url = yield* Config.redacted("DATABASE_URL");
-    const isProd = yield* Config.literal("dev", "prod", "staging")("NODE_ENV").pipe(
+    const isProd = yield* Config.literal(
+      "dev",
+      "prod",
+      "staging",
+    )("NODE_ENV").pipe(
       Config.withDefault("dev"),
       Effect.map((env) => env === "prod"),
     );
@@ -166,15 +171,16 @@ const makeService = () =>
 
     const db = drizzle(pool, {
       schema,
+      casing: "snake_case",
       logger: {
         logQuery: (query, params) => {
           Effect.runSync(
-            Effect.logInfo(
-              `[Drizzle Query]: ${query} ${params}`
-            )
+            Effect.logInfo(`[Drizzle Query]: ${query} [${params}]`).pipe(
+              Effect.provide(Logger.pretty),
+            ),
           );
         },
-      }
+      },
     });
 
     const execute = Effect.fn(<T>(fn: (client: Client) => Promise<T>) =>
@@ -242,15 +248,15 @@ const makeService = () =>
       <A, E, R, Input = never>(
         queryFn: (execute: ExecuteFn, input: Input) => Effect.Effect<A, E, R>,
       ) =>
-        (
-          ...args: [Input] extends [never] ? [] : [input: Input]
-        ): Effect.Effect<A, E, R> => {
-          const input = args[0] as Input;
-          return Effect.serviceOption(TransactionContext).pipe(
-            Effect.map(Option.getOrNull),
-            Effect.flatMap((txOrNull) => queryFn(txOrNull ?? execute, input)),
-          );
-        };
+      (
+        ...args: [Input] extends [never] ? [] : [input: Input]
+      ): Effect.Effect<A, E, R> => {
+        const input = args[0] as Input;
+        return Effect.serviceOption(TransactionContext).pipe(
+          Effect.map(Option.getOrNull),
+          Effect.flatMap((txOrNull) => queryFn(txOrNull ?? execute, input)),
+        );
+      };
 
     return {
       execute,
@@ -262,7 +268,10 @@ const makeService = () =>
 
 type Shape = Effect.Effect.Success<ReturnType<typeof makeService>>;
 
-export class Database extends Context.Tag("Database")<Database, Shape>() { }
-export const DatabaseLive = Layer.scoped(Database, makeService());
+export class Database extends Context.Tag("Database")<Database, Shape>() {}
+export const DatabaseLive = Layer.provide(
+  Layer.scoped(Database, makeService()),
+  Logger.pretty,
+);
 
 // export const layer = () => Layer.scoped(Database, makeService());
