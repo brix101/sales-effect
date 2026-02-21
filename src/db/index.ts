@@ -95,176 +95,173 @@ export type Config = {
   ssl: boolean;
 };
 
-const makeService = () =>
-  Effect.gen(function* () {
-    const url = yield* Config.redacted("DATABASE_URL");
-    const isProd = yield* Config.literal(
-      "dev",
-      "prod",
-      "staging",
-    )("NODE_ENV").pipe(
-      Config.withDefault("dev"),
-      Effect.map((env) => env === "prod"),
-    );
+const makeService = Effect.fn("makeService")(function* () {
+  const effectRuntime = yield* Effect.runtime<never>();
 
-    const pool = yield* Effect.acquireRelease(
-      Effect.sync(
-        () =>
-          new pg.Pool({
-            connectionString: Redacted.value(url),
-            ssl: isProd,
-            idleTimeoutMillis: 0,
-            connectionTimeoutMillis: 0,
-          }),
-      ),
-      (pool) => Effect.promise(() => pool.end()),
-    );
+  const url = yield* Config.redacted("DATABASE_URL");
+  const isProd = yield* Config.literal(
+    "dev",
+    "prod",
+    "staging",
+  )("NODE_ENV").pipe(
+    Config.withDefault("dev"),
+    Effect.map((env) => env === "prod"),
+  );
 
-    yield* Effect.tryPromise(() => pool.query("SELECT 1")).pipe(
-      Effect.timeoutFail({
-        duration: "10 seconds",
-        onTimeout: () =>
-          new DatabaseConnectionLostError({
-            cause: new Error("[Database] Failed to connect: timeout"),
-            message: "[Database] Failed to connect: timeout",
-          }),
-      }),
-      Effect.catchTag(
-        "UnknownException",
-        (error) =>
-          new DatabaseConnectionLostError({
-            cause: error.cause,
-            message: "[Database] Failed to connect",
-          }),
-      ),
-      Effect.tap(() =>
-        Effect.logInfo(
-          "[Database Client]: Connection to database established.",
-        ),
-      ),
-    );
+  const pool = yield* Effect.acquireRelease(
+    Effect.sync(
+      () =>
+        new pg.Pool({
+          connectionString: Redacted.value(url),
+          ssl: isProd,
+          idleTimeoutMillis: 0,
+          connectionTimeoutMillis: 0,
+        }),
+    ),
+    (pool) => Effect.promise(() => pool.end()),
+  );
 
-    const setupConnectionListeners = Effect.zipRight(
-      Effect.async<void, DatabaseConnectionLostError>((resume) => {
-        pool.on("error", (error) => {
-          resume(
-            Effect.fail(
-              new DatabaseConnectionLostError({
-                cause: error,
-                message: error.message,
-              }),
-            ),
-          );
-        });
+  yield* Effect.tryPromise(() => pool.query("SELECT 1")).pipe(
+    Effect.timeoutFail({
+      duration: "10 seconds",
+      onTimeout: () =>
+        new DatabaseConnectionLostError({
+          cause: new Error("[Database] Failed to connect: timeout"),
+          message: "[Database] Failed to connect: timeout",
+        }),
+    }),
+    Effect.catchTag(
+      "UnknownException",
+      (error) =>
+        new DatabaseConnectionLostError({
+          cause: error.cause,
+          message: "[Database] Failed to connect",
+        }),
+    ),
+    Effect.tap(() =>
+      Effect.logInfo("[Database Client]: Connection to database established."),
+    ),
+  );
 
-        return Effect.sync(() => {
-          pool.removeAllListeners("error");
-        });
-      }),
-      Effect.logInfo(
-        "[Database client]: Connection error listeners initialized.",
-      ),
-      {
-        concurrent: true,
-      },
-    );
-
-    const db = drizzle(pool, {
-      schema,
-      casing: "snake_case",
-      logger: {
-        logQuery: (query, params) => {
-          Effect.runSync(
-            Effect.logInfo(`Query:${query} -- params:[${params}]`).pipe(
-              Effect.provide(Logger.pretty),
-            ),
-          );
-        },
-      },
-    });
-
-    const execute = Effect.fn(<T>(fn: (client: Client) => Promise<T>) =>
-      Effect.tryPromise({
-        try: () => fn(db),
-        catch: (cause) => {
-          const error = matchPgError(cause);
-          if (error !== null) {
-            return error;
-          }
-          throw cause;
-        },
-      }),
-    );
-
-    const transaction = Effect.fn("Database.transaction")(
-      <T, E, R>(
-        txExecute: (tx: TransactionContextShape) => Effect.Effect<T, E, R>,
-      ) =>
-        Effect.runtime<R>().pipe(
-          Effect.map((runtime) => Runtime.runPromiseExit(runtime)),
-          Effect.flatMap((runPromiseExit) =>
-            Effect.async<T, DatabaseError | E, R>((resume) => {
-              db.transaction(async (tx: TransactionClient) => {
-                const txWrapper = (
-                  fn: (client: TransactionClient) => Promise<any>,
-                ) =>
-                  Effect.tryPromise({
-                    try: () => fn(tx),
-                    catch: (cause) => {
-                      const error = matchPgError(cause);
-                      if (error !== null) {
-                        return error;
-                      }
-                      throw cause;
-                    },
-                  });
-
-                const result = await runPromiseExit(txExecute(txWrapper));
-                Exit.match(result, {
-                  onSuccess: (value) => {
-                    resume(Effect.succeed(value));
-                  },
-                  onFailure: (cause) => {
-                    if (Cause.isFailure(cause)) {
-                      resume(Effect.fail(Cause.originalError(cause) as E));
-                    } else {
-                      resume(Effect.die(cause));
-                    }
-                  },
-                });
-              }).catch((cause) => {
-                const error = matchPgError(cause);
-                resume(error !== null ? Effect.fail(error) : Effect.die(cause));
-              });
+  const setupConnectionListeners = Effect.zipRight(
+    Effect.async<void, DatabaseConnectionLostError>((resume) => {
+      pool.on("error", (error) => {
+        resume(
+          Effect.fail(
+            new DatabaseConnectionLostError({
+              cause: error,
+              message: error.message,
             }),
           ),
-        ),
-    );
-
-    type ExecuteFn = <T>(
-      fn: (client: Client | TransactionClient) => Promise<T>,
-    ) => Effect.Effect<T, DatabaseError>;
-    const makeQuery =
-      <A, E, R, Input = never>(
-        queryFn: (execute: ExecuteFn, input: Input) => Effect.Effect<A, E, R>,
-      ) =>
-      (
-        ...args: [Input] extends [never] ? [] : [input: Input]
-      ): Effect.Effect<A, E, R> => {
-        const input = args[0] as Input;
-        return Effect.serviceOption(TransactionContext).pipe(
-          Effect.map(Option.getOrNull),
-          Effect.flatMap((txOrNull) => queryFn(txOrNull ?? execute, input)),
         );
-      };
+      });
 
-    return {
-      execute,
-      transaction,
-      setupConnectionListeners,
-      makeQuery,
-    } as const;
+      return Effect.sync(() => {
+        pool.removeAllListeners("error");
+      });
+    }),
+    Effect.logInfo(
+      "[Database client]: Connection error listeners initialized.",
+    ),
+    {
+      concurrent: true,
+    },
+  );
+
+  const db = drizzle(pool, {
+    schema,
+    casing: "snake_case",
+    logger: {
+      logQuery: (query, params) =>
+        Runtime.runSync(
+          effectRuntime,
+          Effect.logInfo(`Query:${query} -- params:[${params}]`),
+        ),
+    },
   });
+
+  const execute = Effect.fn(<T>(fn: (client: Client) => Promise<T>) =>
+    Effect.tryPromise({
+      try: () => fn(db),
+      catch: (cause) => {
+        const error = matchPgError(cause);
+        if (error !== null) {
+          return error;
+        }
+        throw cause;
+      },
+    }),
+  );
+
+  const transaction = Effect.fn("Database.transaction")(
+    <T, E, R>(
+      txExecute: (tx: TransactionContextShape) => Effect.Effect<T, E, R>,
+    ) =>
+      Effect.runtime<R>().pipe(
+        Effect.map((runtime) => Runtime.runPromiseExit(runtime)),
+        Effect.flatMap((runPromiseExit) =>
+          Effect.async<T, DatabaseError | E, R>((resume) => {
+            db.transaction(async (tx: TransactionClient) => {
+              const txWrapper = (
+                fn: (client: TransactionClient) => Promise<any>,
+              ) =>
+                Effect.tryPromise({
+                  try: () => fn(tx),
+                  catch: (cause) => {
+                    const error = matchPgError(cause);
+                    if (error !== null) {
+                      return error;
+                    }
+                    throw cause;
+                  },
+                });
+
+              const result = await runPromiseExit(txExecute(txWrapper));
+              Exit.match(result, {
+                onSuccess: (value) => {
+                  resume(Effect.succeed(value));
+                },
+                onFailure: (cause) => {
+                  if (Cause.isFailure(cause)) {
+                    resume(Effect.fail(Cause.originalError(cause) as E));
+                  } else {
+                    resume(Effect.die(cause));
+                  }
+                },
+              });
+            }).catch((cause) => {
+              const error = matchPgError(cause);
+              resume(error !== null ? Effect.fail(error) : Effect.die(cause));
+            });
+          }),
+        ),
+      ),
+  );
+
+  type ExecuteFn = <T>(
+    fn: (client: Client | TransactionClient) => Promise<T>,
+  ) => Effect.Effect<T, DatabaseError>;
+  const makeQuery =
+    <A, E, R, Input = never>(
+      queryFn: (execute: ExecuteFn, input: Input) => Effect.Effect<A, E, R>,
+    ) =>
+    (
+      ...args: [Input] extends [never] ? [] : [input: Input]
+    ): Effect.Effect<A, E, R> => {
+      const input = args[0] as Input;
+      return Effect.serviceOption(TransactionContext).pipe(
+        Effect.map(Option.getOrNull),
+        Effect.flatMap((txOrNull) => queryFn(txOrNull ?? execute, input)),
+      );
+    };
+
+  return {
+    execute,
+    transaction,
+    setupConnectionListeners,
+    makeQuery,
+  } as const;
+});
 
 type Shape = Effect.Effect.Success<ReturnType<typeof makeService>>;
 

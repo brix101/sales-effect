@@ -1,7 +1,8 @@
-import { program } from "@/program";
+import { NodeRuntime } from "@effect/platform-node";
 import { config } from "dotenv";
-import * as Effect from "effect/Effect";
+import { Layer } from "effect";
+import { HttpLive } from "./http.js";
 
 config({ path: [".env.local", ".env"] });
 
-Effect.runPromise(program);
+HttpLive.pipe(Layer.launch, NodeRuntime.runMain);

@@ -1,17 +1,22 @@
-import { Database, DatabaseLive } from "@/db/index";
+import { Database, DatabaseLive } from "@/db";
 import { customers } from "@/db/schema/customers";
 import { orders, ordersItems } from "@/db/schema/orders";
 import { products } from "@/db/schema/products";
 import { faker } from "@faker-js/faker";
 import { config } from "dotenv";
-import { Logger } from "effect";
+import { Data, Layer, Logger } from "effect";
 import * as Effect from "effect/Effect";
 
 config({ path: [".env.local", ".env"] });
 
-const CUSTOMER_COUNT = 1000;
-const PRODUCT_COUNT = 5000;
+const CUSTOMER_COUNT = 10000;
+const PRODUCT_COUNT = 50000;
 const BATCH_SIZE = 100;
+
+class SeederError extends Data.TaggedError("SeederError")<{
+  cause: unknown;
+  message: string;
+}> {}
 
 const program = Effect.gen(function* () {
   const timeStart = Date.now();
@@ -27,8 +32,10 @@ const program = Effect.gen(function* () {
     );
 
   if (hasData) {
-    yield* Effect.log("Database already seeded. Exiting...");
-    return;
+    return new SeederError({
+      cause: "Database already seeded",
+      message: "Database already seeded, skipping seeding process.",
+    });
   }
 
   const productBatches = Array.from(
@@ -45,15 +52,28 @@ const program = Effect.gen(function* () {
       ),
   );
 
-  yield* Effect.log("Seeding products...");
+  yield* Effect.log(
+    "++++++++++++++++++++++++ Products ++++++++++++++++++++++++",
+  );
   const createdProducts = yield* Effect.flatMap(
-    Effect.forEach(productBatches, (batch) =>
-      db.execute((client) => client.insert(products).values(batch).returning()),
+    Effect.forEach(productBatches, (batch, index) =>
+      Effect.gen(function* () {
+        const percent = (((index + 1) / productBatches.length) * 100).toFixed(
+          2,
+        );
+        yield* Effect.logInfo(`Seeding products: ${percent}%`);
+        const items = yield* db.execute((client) =>
+          client.insert(products).values(batch).returning(),
+        );
+        return items;
+      }),
     ),
     (results) => Effect.succeed(results.flat()),
   );
 
-  yield* Effect.log("Seeding customers...");
+  yield* Effect.log(
+    "++++++++++++++++++++++++ Customers ++++++++++++++++++++++++",
+  );
   const customerBatches = Array.from(
     { length: Math.ceil(CUSTOMER_COUNT / BATCH_SIZE) },
     (_, i) =>
@@ -68,19 +88,35 @@ const program = Effect.gen(function* () {
       ),
   );
 
-  const createdCustomers = yield* Effect.forEach(customerBatches, (batch) =>
-    db.execute((client) =>
-      client.insert(customers).values(batch).onConflictDoNothing().returning(),
-    ),
+  const createdCustomers = yield* Effect.forEach(
+    customerBatches,
+    (batch, index) =>
+      Effect.gen(function* () {
+        const percent = (((index + 1) / customerBatches.length) * 100).toFixed(
+          2,
+        );
+        yield* Effect.logInfo(`Seeding customers: ${percent}%`);
+        const items = yield* db.execute((client) =>
+          client
+            .insert(customers)
+            .values(batch)
+            .onConflictDoNothing()
+            .returning(),
+        );
+        return items;
+      }),
   );
 
-  yield* Effect.log("Seeding sales...");
-  const salesResults = yield* Effect.forEach(createdCustomers, (batch) =>
+  yield* Effect.log("++++++++++++++++++++++++ Orders ++++++++++++++++++++++++");
+  const salesResults = yield* Effect.forEach(createdCustomers, (batch, index) =>
     Effect.gen(function* () {
+      const percent = (((index + 1) / customerBatches.length) * 100).toFixed(2);
+      yield* Effect.logInfo(`Seeding orders: ${percent}%`);
+
       const newOrders = yield* Effect.flatMap(
         Effect.forEach(batch, (customer) =>
           Effect.gen(function* () {
-            const orderCount = faker.number.int({ min: 1, max: 5 });
+            const orderCount = faker.number.int({ min: 1, max: 10 });
             const orderBatch = Array.from({ length: orderCount }, () => ({
               customerId: customer.id,
             }));
@@ -138,20 +174,30 @@ const program = Effect.gen(function* () {
     },
   );
 
-  yield* Effect.log(
-    "Seeding completed.",
-    `Created ${createdCustomers.flat().length} customers.`,
-    `Created ${createdProducts.length} products.`,
-    `Created ${totalOrders} orders with ${totalOrderedItems} items.`,
-  );
+  return {
+    duration: (Date.now() - timeStart) / 60000,
+    count: {
+      customers: createdCustomers.flat().length,
+      products: createdProducts.length,
+      orders: totalOrders,
+      orderItems: totalOrderedItems,
+    },
+  };
+}).pipe(
+  Effect.provide(Layer.merge(DatabaseLive, Logger.pretty)),
+  Effect.tap((res) => {
+    if (res instanceof SeederError) {
+      return Effect.logError(res.message);
+    }
+    const { duration, count } = res;
 
-  const timeEnd = Date.now();
-  const duration = (timeEnd - timeStart) / 60000;
-  const hours = Math.floor(duration / 60);
-  const minutes = Math.floor(duration % 60);
-  const seconds = Math.floor((duration * 60) % 60);
-
-  yield* Effect.log(`Total seeding time: ${hours}h ${minutes}m ${seconds}s`);
-}).pipe(Effect.provide(DatabaseLive), Effect.provide(Logger.pretty));
+    return Effect.logInfo(
+      `Database seeded successfully in ${duration.toFixed(2)} minutes.`,
+      `Created ${count.customers} customers`,
+      `Created ${count.products} products`,
+      `Created ${count.orders} orders with ${count.orderItems} items.`,
+    );
+  }),
+);
 
 Effect.runPromise(program);
