@@ -1,11 +1,11 @@
 import { Database, DatabaseLive } from "@/db";
-import { products } from "@/db/schema/products";
+import { orders } from "@/db/schema/orders";
 import { count } from "drizzle-orm";
 import { Effect, Schema } from "effect";
-import { ProductsWithPagination } from "./products.domain.js";
+import { OrdersWithPagination } from "./orders.domain.js";
 
-export class ProductService extends Effect.Service<ProductService>()(
-  "ProductService",
+export class OrderService extends Effect.Service<OrderService>()(
+  "OrderService",
   {
     effect: Effect.gen(function* () {
       const db = yield* Database;
@@ -16,13 +16,13 @@ export class ProductService extends Effect.Service<ProductService>()(
             client.transaction(async (tx) => {
               const items = await tx
                 .select()
-                .from(products)
+                .from(orders)
                 .limit(pageSize)
                 .offset((page - 1) * pageSize);
 
               const total = await tx
-                .select({ count: count(products.id) })
-                .from(products)
+                .select({ count: count(orders.id) })
+                .from(orders)
                 .then((res) => res[0]?.count ?? 0);
 
               return {
@@ -38,12 +38,12 @@ export class ProductService extends Effect.Service<ProductService>()(
             }),
           )
           .pipe(
-            Effect.flatMap(Schema.decode(ProductsWithPagination)),
+            Effect.flatMap(Schema.decode(OrdersWithPagination)),
             Effect.catchTags({
               DatabaseError: Effect.die,
               ParseError: Effect.die,
             }),
-            Effect.withSpan("ProductService.findAll", {
+            Effect.withSpan("OrderService.findAll", {
               attributes: { page, pageSize },
             }),
           );

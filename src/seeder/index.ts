@@ -32,7 +32,7 @@ const program = Effect.gen(function* () {
     );
 
   if (hasData) {
-    return new SeederError({
+    throw new SeederError({
       cause: "Database already seeded",
       message: "Database already seeded, skipping seeding process.",
     });
@@ -185,12 +185,7 @@ const program = Effect.gen(function* () {
   };
 }).pipe(
   Effect.provide(Layer.merge(DatabaseLive, Logger.pretty)),
-  Effect.tap((res) => {
-    if (res instanceof SeederError) {
-      return Effect.logError(res.message);
-    }
-    const { duration, count } = res;
-
+  Effect.tap(({ duration, count }) => {
     return Effect.logInfo(
       `Database seeded successfully in ${duration.toFixed(2)} minutes.`,
       `Created ${count.customers} customers`,

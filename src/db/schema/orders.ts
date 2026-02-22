@@ -9,10 +9,14 @@ export const orders = pgTable("orders", (t) => ({
     .uuid()
     .references(() => customers.id, { onDelete: "restrict" })
     .notNull(),
-  createdAt: t.timestamp().defaultNow().notNull(),
+  createdAt: t
+    .timestamp({ mode: "string", withTimezone: true })
+    .defaultNow()
+    .notNull(),
   updatedAt: t
     .timestamp({ mode: "string", withTimezone: true })
-    .$onUpdateFn(() => sql`now()`),
+    .$onUpdateFn(() => sql`now()`)
+    .notNull(),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -33,8 +37,8 @@ export const ordersItems = pgTable("orders_items", (t) => ({
     .uuid()
     .references(() => products.id, { onDelete: "restrict" })
     .notNull(),
-  price: t.real().default(0),
-  quantity: t.integer().default(0),
+  price: t.real().default(0).notNull(),
+  quantity: t.integer().default(0).notNull(),
 }));
 
 export const ordersItemsRelations = relations(ordersItems, ({ one }) => ({

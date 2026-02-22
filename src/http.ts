@@ -1,27 +1,27 @@
+import { Api } from "@/api";
+import HttpCustomerLive from "@/modules/customers/customers.http";
+import HttpOrderLive from "@/modules/orders/orders.http";
+import HttpProductLive from "@/modules/products/products.http";
 import {
-  HttpApi,
   HttpApiBuilder,
-  HttpApiEndpoint,
-  HttpApiGroup,
   HttpApiSwagger,
   HttpMiddleware,
   HttpServer,
 } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer } from "effect";
 import { createServer } from "http";
-
-const Api = HttpApi.make("api").add(
-  HttpApiGroup.make("Greetings").add(
-    HttpApiEndpoint.get("hello-world")`/`.addSuccess(Schema.String),
-  ),
-);
 
 const GreetingsLive = HttpApiBuilder.group(Api, "Greetings", (handlers) =>
   handlers.handle("hello-world", () => Effect.succeed("Hello, World!")),
 );
 
-const ApiLive = HttpApiBuilder.api(Api).pipe(Layer.provide(GreetingsLive));
+const ApiLive = Layer.provide(HttpApiBuilder.api(Api), [
+  GreetingsLive,
+  HttpProductLive,
+  HttpCustomerLive,
+  HttpOrderLive,
+]);
 
 export const HttpLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
   Layer.provide(HttpApiSwagger.layer()),

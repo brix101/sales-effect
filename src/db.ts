@@ -100,7 +100,7 @@ export const DatabaseLive = Layer.scoped(
 
     const execute = Effect.fn(<T>(fn: (client: Client) => Promise<T>) =>
       Effect.tryPromise({
-        try: () => fn(db),
+        try: () => fn(db) as Promise<T>,
         catch: (error) => {
           if (error instanceof pg.DatabaseError) {
             switch (error.code) {
