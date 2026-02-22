@@ -14,11 +14,10 @@ export class ProductService extends Effect.Service<ProductService>()(
         db
           .execute((client) =>
             client.transaction(async (tx) => {
-              const items = await tx
-                .select()
-                .from(products)
-                .limit(pageSize)
-                .offset((page - 1) * pageSize);
+              const items = await tx.query.products.findMany({
+                limit: pageSize,
+                offset: (page - 1) * pageSize,
+              });
 
               const total = await tx
                 .select({ count: count(products.id) })

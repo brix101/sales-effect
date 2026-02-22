@@ -14,11 +14,24 @@ export class OrderService extends Effect.Service<OrderService>()(
         db
           .execute((client) =>
             client.transaction(async (tx) => {
-              const items = await tx
-                .select()
-                .from(orders)
-                .limit(pageSize)
-                .offset((page - 1) * pageSize);
+              const items = await tx.query.orders.findMany({
+                limit: pageSize,
+                offset: (page - 1) * pageSize,
+                columns: {
+                  customerId: false,
+                },
+                with: {
+                  customer: true,
+                  items: {
+                    columns: {
+                      productId: false,
+                    },
+                    with: {
+                      product: true,
+                    },
+                  },
+                },
+              });
 
               const total = await tx
                 .select({ count: count(orders.id) })
