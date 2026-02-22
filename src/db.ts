@@ -1,5 +1,5 @@
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Config, Context, Data, Effect, Layer, Logger, Redacted } from "effect";
+import { Config, Context, Data, Effect, Layer, Redacted } from "effect";
 import pg from "pg";
 
 import * as schema from "@/db/schema/index";
@@ -33,18 +33,7 @@ export class DatabaseError extends Data.TaggedError("DatabaseError")<{
   }
 }
 
-export class Database extends Context.Tag("Database")<
-  Database,
-  {
-    readonly db: Client;
-    readonly execute: <T>(
-      fn: (client: Client) => Promise<T>,
-    ) => Effect.Effect<T, DatabaseError>;
-  }
->() {}
-
-export const DatabaseLive = Layer.scoped(
-  Database,
+const make = () =>
   Effect.gen(function* () {
     const url = yield* Config.redacted("DATABASE_URL");
     const isProd = yield* Config.literal(
@@ -98,37 +87,44 @@ export const DatabaseLive = Layer.scoped(
       casing: "snake_case",
     });
 
-    const execute = Effect.fn(<T>(fn: (client: Client) => Promise<T>) =>
-      Effect.tryPromise({
-        try: () => fn(db) as Promise<T>,
-        catch: (error) => {
-          if (error instanceof pg.DatabaseError) {
-            switch (error.code) {
-              case "23505":
-                throw new DatabaseError({
-                  type: "unique_violation",
-                  cause: error,
-                });
-              case "23503":
-                throw new DatabaseError({
-                  type: "foreign_key_violation",
-                  cause: error,
-                });
-              case "08000":
-                throw new DatabaseError({
-                  type: "connection_error",
-                  cause: error,
-                });
+    const Query = Effect.fn("Database.execute")(
+      <T>(fn: (client: Client) => Promise<T>) =>
+        Effect.tryPromise<T, DatabaseError>({
+          try: () => fn(db) as Promise<T>,
+          catch: (error) => {
+            if (error instanceof pg.DatabaseError) {
+              switch (error.code) {
+                case "23505":
+                  throw new DatabaseError({
+                    type: "unique_violation",
+                    cause: error,
+                  });
+                case "23503":
+                  throw new DatabaseError({
+                    type: "foreign_key_violation",
+                    cause: error,
+                  });
+                case "08000":
+                  throw new DatabaseError({
+                    type: "connection_error",
+                    cause: error,
+                  });
+              }
             }
-          }
-          throw error;
-        },
-      }),
+            throw error;
+          },
+        }),
     );
 
     return {
       db,
-      execute,
+      Query,
     };
-  }).pipe(Effect.provide(Logger.pretty)),
-);
+  });
+
+export class Database extends Context.Tag("Database")<
+  Database,
+  Effect.Effect.Success<ReturnType<typeof make>>
+>() {}
+
+export const DatabaseLive = Layer.scoped(Database, make());

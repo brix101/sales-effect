@@ -25,7 +25,7 @@ const program = Effect.gen(function* () {
   yield* Effect.log("Seeding database...");
 
   const hasData = yield* db
-    .execute((client) => client.query.customers.findFirst())
+    .Query((client) => client.query.customers.findFirst())
     .pipe(
       Effect.map((item) => !!item),
       Effect.catchAll(() => Effect.succeed(false)),
@@ -62,7 +62,7 @@ const program = Effect.gen(function* () {
           2,
         );
         yield* Effect.logInfo(`Seeding products: ${percent}%`);
-        const items = yield* db.execute((client) =>
+        const items = yield* db.Query((client) =>
           client.insert(products).values(batch).returning(),
         );
         return items;
@@ -96,7 +96,7 @@ const program = Effect.gen(function* () {
           2,
         );
         yield* Effect.logInfo(`Seeding customers: ${percent}%`);
-        const items = yield* db.execute((client) =>
+        const items = yield* db.Query((client) =>
           client
             .insert(customers)
             .values(batch)
@@ -121,7 +121,7 @@ const program = Effect.gen(function* () {
               customerId: customer.id,
             }));
 
-            const items = yield* db.execute((client) =>
+            const items = yield* db.Query((client) =>
               client.insert(orders).values(orderBatch).returning(),
             );
 
@@ -147,7 +147,7 @@ const program = Effect.gen(function* () {
             });
 
             if (orderItemsBatch.length > 0) {
-              return yield* db.execute((client) =>
+              return yield* db.Query((client) =>
                 client.insert(ordersItems).values(orderItemsBatch).returning(),
               );
             }
