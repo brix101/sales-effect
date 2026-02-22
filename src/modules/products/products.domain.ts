@@ -1,11 +1,10 @@
-import { PaginationMeta } from "@/modules/common/domain";
-import { Model } from "@effect/sql";
+import { paginationMeta } from "@/modules/common/domain";
 import { Schema } from "effect";
 
 export const ProductId = Schema.UUID.pipe(Schema.brand("ProductId"));
 export type ProductId = typeof ProductId.Type;
 
-export class Product extends Model.Class<Product>("Product")({
+export class Product extends Schema.Class<Product>("Product")({
   id: ProductId,
   name: Schema.NonEmptyTrimmedString,
   description: Schema.NullOr(Schema.String),
@@ -13,9 +12,9 @@ export class Product extends Model.Class<Product>("Product")({
   price: Schema.Number.pipe(Schema.greaterThanOrEqualTo(0)),
 }) {}
 
-export class ProductsWithPagination extends Model.Class<ProductsWithPagination>(
+export class ProductsWithPagination extends Schema.Class<ProductsWithPagination>(
   "ProductsWithPagination",
 )({
-  meta: PaginationMeta,
+  meta: paginationMeta,
   items: Schema.Array(Product),
 }) {}
