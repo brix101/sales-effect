@@ -87,7 +87,7 @@ const make = () =>
       casing: "snake_case",
     });
 
-    const Query = Effect.fn("Database.execute")(
+    const Query = Effect.fn("Database.Query")(
       <T>(fn: (client: Client) => Promise<T>) =>
         Effect.tryPromise<T, DatabaseError>({
           try: () => fn(db) as Promise<T>,
