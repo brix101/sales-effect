@@ -12,7 +12,7 @@ config({ path: [".env.local", ".env"] });
 
 const CUSTOMER_COUNT = 10000;
 const PRODUCT_COUNT = 50000;
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 1000;
 
 class SeederError extends Data.TaggedError("SeederError")<{
   cause: unknown;
