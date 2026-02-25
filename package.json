@@ -9,7 +9,7 @@
     "dev": "tsx --watch src/main.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "effect-language-service patch",
-    "seed": "tsx src/seeder/index.ts",
+    "db:seed": "tsx src/seeder/index.ts",
     "db:generate": "NODE_OPTIONS='--import tsx' drizzle-kit generate",
     "db:migrate": "NODE_OPTIONS='--import tsx' drizzle-kit migrate",
     "db:push": "NODE_OPTIONS='--import tsx' drizzle-kit push",

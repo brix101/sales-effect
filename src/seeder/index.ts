@@ -1,4 +1,4 @@
-import { Database, DatabaseLive } from "@/db";
+import * as Database from "@/db";
 import { customers } from "@/db/schema/customers";
 import { orders, ordersItems } from "@/db/schema/orders";
 import { products } from "@/db/schema/products";
@@ -20,12 +20,12 @@ class SeederError extends Data.TaggedError("SeederError")<{
 
 const program = Effect.gen(function* () {
   const timeStart = Date.now();
-  const db = yield* Database;
+  const db = yield* Database.Database;
 
   yield* Effect.log("Seeding database...");
 
   const hasData = yield* db
-    .Query((client) => client.query.customers.findFirst())
+    .use((client) => client.query.customers.findFirst())
     .pipe(
       Effect.map((item) => !!item),
       Effect.catchAll(() => Effect.succeed(false)),
@@ -62,7 +62,7 @@ const program = Effect.gen(function* () {
           2,
         );
         yield* Effect.logInfo(`Seeding products: ${percent}%`);
-        const items = yield* db.Query((client) =>
+        const items = yield* db.use((client) =>
           client.insert(products).values(batch).returning(),
         );
         return items;
@@ -96,7 +96,7 @@ const program = Effect.gen(function* () {
           2,
         );
         yield* Effect.logInfo(`Seeding customers: ${percent}%`);
-        const items = yield* db.Query((client) =>
+        const items = yield* db.use((client) =>
           client
             .insert(customers)
             .values(batch)
@@ -121,7 +121,7 @@ const program = Effect.gen(function* () {
               customerId: customer.id,
             }));
 
-            const items = yield* db.Query((client) =>
+            const items = yield* db.use((client) =>
               client.insert(orders).values(orderBatch).returning(),
             );
 
@@ -147,7 +147,7 @@ const program = Effect.gen(function* () {
             });
 
             if (orderItemsBatch.length > 0) {
-              return yield* db.Query((client) =>
+              return yield* db.use((client) =>
                 client.insert(ordersItems).values(orderItemsBatch).returning(),
               );
             }
@@ -184,7 +184,7 @@ const program = Effect.gen(function* () {
     },
   };
 }).pipe(
-  Effect.provide(Layer.merge(DatabaseLive, Logger.pretty)),
+  Effect.provide(Layer.merge(Database.fromEnv, Logger.pretty)),
   Effect.tap(({ duration, count }) => {
     return Effect.logInfo(
       `Database seeded successfully in ${duration.toFixed(2)} minutes.`,

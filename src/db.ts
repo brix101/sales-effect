@@ -1,6 +1,6 @@
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Config, Context, Data, Effect, Layer, Redacted } from "effect";
-import pg from "pg";
+import pg, { type PoolConfig } from "pg";
 
 import * as schema from "@/db/schema/index";
 
@@ -32,29 +32,21 @@ export class DatabaseError extends Data.TaggedError("DatabaseError")<{
     return this.cause.message;
   }
 }
+type DatabaseShape = {
+  use: <T>(
+    fn: (client: Client) => Promise<T>,
+  ) => Effect.Effect<T, DatabaseError, never>;
+};
 
-const make = () =>
+export class Database extends Context.Tag("Database")<
+  Database,
+  DatabaseShape
+>() {}
+
+const make = (config?: PoolConfig) =>
   Effect.gen(function* () {
-    const url = yield* Config.redacted("DATABASE_URL");
-    const isProd = yield* Config.literal(
-      "dev",
-      "prod",
-      "staging",
-    )("NODE_ENV").pipe(
-      Config.withDefault("dev"),
-      Effect.map((env) => env === "prod"),
-    );
-
     const pool = yield* Effect.acquireRelease(
-      Effect.sync(
-        () =>
-          new pg.Pool({
-            connectionString: Redacted.value(url),
-            ssl: isProd,
-            idleTimeoutMillis: 0,
-            connectionTimeoutMillis: 0,
-          }),
-      ),
+      Effect.sync(() => new pg.Pool(config)),
       (pool) => Effect.promise(() => pool.end()),
     );
 
@@ -87,8 +79,8 @@ const make = () =>
       casing: "snake_case",
     });
 
-    const Query = Effect.fn("Database.Query")(
-      <T>(fn: (client: Client) => Promise<T>) =>
+    return Database.of({
+      use: Effect.fn("Database.use")(<T>(fn: (client: Client) => Promise<T>) =>
         Effect.tryPromise<T, DatabaseError>({
           try: () => fn(db) as Promise<T>,
           catch: (error) => {
@@ -114,17 +106,17 @@ const make = () =>
             throw error;
           },
         }),
-    );
-
-    return {
-      db,
-      Query,
-    };
+      ),
+    });
   });
 
-export class Database extends Context.Tag("Database")<
-  Database,
-  Effect.Effect.Success<ReturnType<typeof make>>
->() {}
+export const layer = (config?: PoolConfig) =>
+  Layer.scoped(Database, make(config));
 
-export const DatabaseLive = Layer.scoped(Database, make());
+export const fromEnv = Layer.scoped(
+  Database,
+  Effect.gen(function* () {
+    const url = yield* Config.redacted("DATABASE_URL");
+    return yield* make({ connectionString: Redacted.value(url) });
+  }),
+);

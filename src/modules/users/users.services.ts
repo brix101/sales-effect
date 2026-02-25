@@ -1,17 +1,17 @@
-import { Database, DatabaseLive } from "@/db";
+import * as Database from "@/db";
 import { users } from "@/db/schema/user";
 import { Array, Effect, Redacted, Schema } from "effect";
 import { User, type CreateUserPayloadInput } from "./users.domain.js";
 
 export class UserService extends Effect.Service<UserService>()("UsersService", {
   effect: Effect.gen(function* () {
-    const db = yield* Database;
+    const db = yield* Database.Database;
 
     const create = Effect.fn("UsersService.create")(
       //
       function* (data: CreateUserPayloadInput) {
         return yield* db
-          .Query((client) =>
+          .use((client) =>
             client
               .insert(users)
               .values({
@@ -38,5 +38,5 @@ export class UserService extends Effect.Service<UserService>()("UsersService", {
       create,
     };
   }),
-  dependencies: [DatabaseLive],
+  dependencies: [Database.fromEnv],
 }) {}

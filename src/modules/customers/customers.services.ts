@@ -1,4 +1,4 @@
-import { Database, DatabaseLive } from "@/db";
+import * as Database from "@/db";
 import { customers } from "@/db/schema/index";
 import { count } from "drizzle-orm";
 import { Effect, Schema } from "effect";
@@ -8,13 +8,13 @@ export class CustomerService extends Effect.Service<CustomerService>()(
   "CustomerService",
   {
     effect: Effect.gen(function* () {
-      const db = yield* Database;
+      const db = yield* Database.Database;
 
       const findAll = Effect.fn("CustomerService.findAll")(
         //
         function* (page: number, pageSize: number) {
           return yield* db
-            .Query((client) =>
+            .use((client) =>
               client.transaction(async (tx) => {
                 const items = await tx.query.customers.findMany({
                   limit: pageSize,
@@ -52,6 +52,6 @@ export class CustomerService extends Effect.Service<CustomerService>()(
         findAll,
       };
     }),
-    dependencies: [DatabaseLive],
+    dependencies: [Database.fromEnv],
   },
 ) {}

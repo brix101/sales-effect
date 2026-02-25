@@ -1,4 +1,4 @@
-import { Database, DatabaseLive } from "@/db";
+import * as Database from "@/db";
 import { products } from "@/db/schema/products";
 import { count } from "drizzle-orm";
 import { Effect, Schema } from "effect";
@@ -8,13 +8,13 @@ export class ProductService extends Effect.Service<ProductService>()(
   "ProductService",
   {
     effect: Effect.gen(function* () {
-      const db = yield* Database;
+      const db = yield* Database.Database;
 
       const findAll = Effect.fn("ProductService.findAll")(
         //
         function* (page: number, pageSize: number) {
           return yield* db
-            .Query((client) =>
+            .use((client) =>
               client.transaction(async (tx) => {
                 const items = await tx.query.products.findMany({
                   limit: pageSize,
@@ -52,6 +52,6 @@ export class ProductService extends Effect.Service<ProductService>()(
         findAll,
       };
     }),
-    dependencies: [DatabaseLive],
+    dependencies: [Database.fromEnv],
   },
 ) {}
