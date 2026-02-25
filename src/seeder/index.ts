@@ -2,6 +2,7 @@ import * as Database from "@/db";
 import { customers } from "@/db/schema/customers";
 import { orders, ordersItems } from "@/db/schema/orders";
 import { products } from "@/db/schema/products";
+import { NodeRuntime } from "@effect/platform-node";
 import { faker } from "@faker-js/faker";
 import { config } from "dotenv";
 import { Data, Layer, Logger } from "effect";
@@ -18,7 +19,7 @@ class SeederError extends Data.TaggedError("SeederError")<{
   message: string;
 }> {}
 
-const program = Effect.gen(function* () {
+const main = Effect.gen(function* () {
   const timeStart = Date.now();
   const db = yield* Database.Database;
 
@@ -52,28 +53,6 @@ const program = Effect.gen(function* () {
       ),
   );
 
-  yield* Effect.log(
-    "++++++++++++++++++++++++ Products ++++++++++++++++++++++++",
-  );
-  const createdProducts = yield* Effect.flatMap(
-    Effect.forEach(productBatches, (batch, index) =>
-      Effect.gen(function* () {
-        const percent = (((index + 1) / productBatches.length) * 100).toFixed(
-          2,
-        );
-        yield* Effect.logInfo(`Seeding products: ${percent}%`);
-        const items = yield* db.use((client) =>
-          client.insert(products).values(batch).returning(),
-        );
-        return items;
-      }),
-    ),
-    (results) => Effect.succeed(results.flat()),
-  );
-
-  yield* Effect.log(
-    "++++++++++++++++++++++++ Customers ++++++++++++++++++++++++",
-  );
   const customerBatches = Array.from(
     { length: Math.ceil(CUSTOMER_COUNT / BATCH_SIZE) },
     (_, i) =>
@@ -88,78 +67,114 @@ const program = Effect.gen(function* () {
       ),
   );
 
-  const createdCustomers = yield* Effect.forEach(
-    customerBatches,
-    (batch, index) =>
+  const createdProducts = yield* Effect.all(
+    productBatches.map(
+      (batch, index) =>
+        Effect.gen(function* () {
+          const percent = (((index + 1) / productBatches.length) * 100).toFixed(
+            2,
+          );
+          yield* Effect.logInfo(`Seeding products: ${percent}%`);
+          return yield* db.use((client) =>
+            client.insert(products).values(batch).returning(),
+          );
+        }),
+      {
+        concurrency: 10,
+      },
+    ),
+  );
+
+  const createdCustomers = yield* Effect.all(
+    customerBatches.map((batch, index) =>
       Effect.gen(function* () {
         const percent = (((index + 1) / customerBatches.length) * 100).toFixed(
           2,
         );
         yield* Effect.logInfo(`Seeding customers: ${percent}%`);
-        const items = yield* db.use((client) =>
+        return yield* db.use((client) =>
           client
             .insert(customers)
             .values(batch)
             .onConflictDoNothing()
             .returning(),
         );
-        return items;
       }),
+    ),
+    { concurrency: 10 },
   );
 
-  yield* Effect.log("++++++++++++++++++++++++ Orders ++++++++++++++++++++++++");
-  const salesResults = yield* Effect.forEach(createdCustomers, (batch, index) =>
-    Effect.gen(function* () {
-      const percent = (((index + 1) / customerBatches.length) * 100).toFixed(2);
-      yield* Effect.logInfo(`Seeding orders: ${percent}%`);
+  const productItems = createdProducts.flat();
 
-      const newOrders = yield* Effect.flatMap(
-        Effect.forEach(batch, (customer) =>
-          Effect.gen(function* () {
-            const orderCount = faker.number.int({ min: 1, max: 10 });
-            const orderBatch = Array.from({ length: orderCount }, () => ({
-              customerId: customer.id,
-            }));
+  const salesResults = yield* Effect.all(
+    createdCustomers.map((batch, index) =>
+      Effect.gen(function* () {
+        const percent = (((index + 1) / customerBatches.length) * 100).toFixed(
+          2,
+        );
+        yield* Effect.logInfo(`Seeding orders: ${percent}%`);
 
-            const items = yield* db.use((client) =>
-              client.insert(orders).values(orderBatch).returning(),
-            );
+        const newOrdersBatch = yield* Effect.all(
+          batch.map((customer) =>
+            Effect.gen(function* () {
+              const orderCount = faker.number.int({ min: 1, max: 10 });
+              const orderBatch = Array.from({ length: orderCount }, () => ({
+                customerId: customer.id,
+              }));
 
-            return items;
-          }),
-        ),
-        (results) => Effect.succeed(results.flat()),
-      );
-
-      const newOrderItems = yield* Effect.flatMap(
-        Effect.forEach(newOrders, (order) =>
-          Effect.gen(function* () {
-            const itemCount = faker.number.int({ min: 1, max: 10 });
-            const orderItemsBatch = Array.from({ length: itemCount }, () => {
-              const product = faker.helpers.arrayElement(createdProducts);
-              const quantity = faker.number.int({ min: 1, max: 5 });
-              return {
-                orderId: order.id,
-                productId: product.id,
-                quantity,
-                price: product.price,
-              };
-            });
-
-            if (orderItemsBatch.length > 0) {
-              return yield* db.use((client) =>
-                client.insert(ordersItems).values(orderItemsBatch).returning(),
+              const items = yield* db.use((client) =>
+                client.insert(orders).values(orderBatch).returning(),
               );
-            }
 
-            return [];
-          }),
-        ),
-        (results) => Effect.succeed(results.flat()),
-      );
+              return items;
+            }),
+          ),
+          {
+            concurrency: 5,
+          },
+        ).pipe(Effect.map((results) => results.flat()));
 
-      return { orders: newOrders.length, orderedItems: newOrderItems.length };
-    }),
+        const newOrderItemsbatch = yield* Effect.all(
+          newOrdersBatch.map((order) =>
+            Effect.gen(function* () {
+              const itemCount = faker.number.int({ min: 1, max: 10 });
+              const orderItemsBatch = Array.from({ length: itemCount }, () => {
+                const product = faker.helpers.arrayElement(productItems);
+                const quantity = faker.number.int({ min: 1, max: 5 });
+                return {
+                  orderId: order.id,
+                  productId: product.id,
+                  quantity,
+                  price: product.price,
+                };
+              });
+
+              if (orderItemsBatch.length > 0) {
+                return yield* db.use((client) =>
+                  client
+                    .insert(ordersItems)
+                    .values(orderItemsBatch)
+                    .returning(),
+                );
+              }
+
+              return [];
+            }),
+          ),
+          {
+            concurrency: 10,
+          },
+        ).pipe(Effect.map((results) => results.flat()));
+
+        return {
+          orders: newOrdersBatch.length,
+          orderedItems: newOrderItemsbatch.length,
+        };
+      }),
+    ),
+    {
+      concurrency: 20,
+    },
   );
 
   const { totalOrderedItems, totalOrders } = salesResults.reduce(
@@ -184,7 +199,7 @@ const program = Effect.gen(function* () {
     },
   };
 }).pipe(
-  Effect.provide(Layer.merge(Database.fromEnv, Logger.pretty)),
+  Effect.withLogSpan("seed"),
   Effect.tap(({ duration, count }) => {
     return Effect.logInfo(
       `Database seeded successfully in ${duration.toFixed(2)} minutes.`,
@@ -195,4 +210,6 @@ const program = Effect.gen(function* () {
   }),
 );
 
-Effect.runPromise(program);
+const Services = Layer.merge(Database.fromEnv, Logger.pretty);
+
+main.pipe(Effect.provide(Services), NodeRuntime.runMain);
