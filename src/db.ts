@@ -1,14 +1,8 @@
-import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Config, Context, Data, Effect, Layer, Redacted } from "effect";
 import pg, { type PoolConfig } from "pg";
 
 import * as schema from "@/db/schema/index";
-
-type DBSchema = typeof schema;
-
-type Client = NodePgDatabase<DBSchema> & {
-  $client: pg.Pool;
-};
 
 export class DatabaseConnectionLostError extends Data.TaggedError(
   "DatabaseConnectionLostError",
@@ -32,6 +26,9 @@ export class DatabaseError extends Data.TaggedError("DatabaseError")<{
     return this.cause.message;
   }
 }
+
+type Client = ReturnType<typeof drizzle<typeof schema, pg.Pool>>;
+
 type DatabaseShape = {
   use: <T>(
     fn: (client: Client) => Promise<T>,
@@ -80,9 +77,9 @@ const make = (config?: PoolConfig) =>
     });
 
     return Database.of({
-      use: Effect.fn("Database.use")(<T>(fn: (client: Client) => Promise<T>) =>
-        Effect.tryPromise<T, DatabaseError>({
-          try: () => fn(db) as Promise<T>,
+      use: Effect.fn("Database.use")((fn) =>
+        Effect.tryPromise({
+          try: () => fn(db),
           catch: (error) => {
             if (error instanceof pg.DatabaseError) {
               switch (error.code) {

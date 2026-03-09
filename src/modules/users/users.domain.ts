@@ -9,11 +9,7 @@ export class User extends Schema.Class<User>("User")({
   name: Schema.NonEmptyTrimmedString,
   email: Email,
   password: Schema.Redacted(Password),
-}) {
-  static normalizeEmail(email: string): string {
-    return email.trim().toLowerCase();
-  }
-}
+}) {}
 
 export class CreateUserPayload extends Schema.Class<CreateUserPayload>(
   "CreateUserPayload",
