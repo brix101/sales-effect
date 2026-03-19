@@ -2,7 +2,10 @@ import * as Bcrypt from "@/bcrypt";
 import * as Database from "@/db";
 import { users } from "@/db/schema/user";
 import { eq } from "drizzle-orm";
-import { Array, Effect, Redacted, Schema } from "effect";
+import * as Array from "effect/Array";
+import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
+import * as Schema from "effect/Schema";
 import { User, type CreateUserPayloadInput } from "./users.domain.js";
 
 export class UserService extends Effect.Service<UserService>()("UsersService", {
@@ -58,4 +61,4 @@ export class UserService extends Effect.Service<UserService>()("UsersService", {
       findByEmail,
     };
   }),
-}) {}
+}) { }

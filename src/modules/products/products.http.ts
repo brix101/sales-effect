@@ -1,6 +1,7 @@
 import { Api } from "@/api";
-import { HttpApiBuilder } from "@effect/platform";
-import { Effect, Layer } from "effect";
+import * as HttpApiBuilder from "@effect/platform/HttpApiBuilder";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import { ProductService } from "./products.services.js";
 
 const HttpProductLive = HttpApiBuilder.group(Api, "Products", (handlers) =>

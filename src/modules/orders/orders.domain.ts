@@ -1,7 +1,7 @@
 import { paginationMeta } from "@/modules/common/domain";
 import { Customer } from "@/modules/customers/customers.domain";
 import { Product } from "@/modules/products/products.domain";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 export const OrderId = Schema.UUID.pipe(Schema.brand("OrderId"));
 export type OrderId = typeof OrderId.Type;
@@ -15,7 +15,7 @@ export class OrderItem extends Schema.Class<OrderItem>("OrderItem")({
   quantity: Schema.Number,
   price: Schema.Number,
   product: Product,
-}) {}
+}) { }
 
 export class Order extends Schema.Class<Order>("Order")({
   id: OrderId,
@@ -23,11 +23,11 @@ export class Order extends Schema.Class<Order>("Order")({
   updatedAt: Schema.DateTimeUtc,
   customer: Customer,
   items: Schema.Array(OrderItem),
-}) {}
+}) { }
 
 export class OrdersWithPagination extends Schema.Class<OrdersWithPagination>(
   "OrdersWithPagination",
 )({
   meta: paginationMeta,
   items: Schema.Array(Order),
-}) {}
+}) { }

@@ -2,11 +2,13 @@ import * as Database from "@/db";
 import { customers } from "@/db/schema/customers";
 import { orders, ordersItems } from "@/db/schema/orders";
 import { products } from "@/db/schema/products";
-import { NodeRuntime } from "@effect/platform-node";
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import { faker } from "@faker-js/faker";
 import { config } from "dotenv";
-import { Data, Layer, Logger } from "effect";
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 
 config({ path: [".env.local", ".env"] });
 
@@ -17,7 +19,7 @@ const BATCH_SIZE = 1000;
 class SeederError extends Data.TaggedError("SeederError")<{
   cause: unknown;
   message: string;
-}> {}
+}> { }
 
 const main = Effect.gen(function* () {
   const timeStart = Date.now();
@@ -25,12 +27,13 @@ const main = Effect.gen(function* () {
 
   yield* Effect.log("Seeding database...");
 
-  const hasData = yield* db
-    .use((client) => client.query.customers.findFirst())
-    .pipe(
-      Effect.map((item) => !!item),
-      Effect.catchAll(() => Effect.succeed(false)),
-    );
+
+  const hasData = yield* db.use((client) =>
+    client.query.customers.findFirst(),
+  ).pipe(
+    Effect.map((item) => !!item),
+    Effect.catchAll(() => Effect.succeed(false)),
+  );
 
   if (hasData) {
     throw new SeederError({

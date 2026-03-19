@@ -1,5 +1,10 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Config, Context, Data, Effect, Layer, Redacted } from "effect";
+import * as Config from "effect/Config";
+import * as Context from "effect/Context";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Redacted from "effect/Redacted";
 import pg, { type PoolConfig } from "pg";
 
 import * as schema from "@/db/schema/index";
@@ -9,13 +14,13 @@ export class DatabaseConnectionLostError extends Data.TaggedError(
 )<{
   cause: unknown;
   message: string;
-}> {}
+}> { }
 
 export class DatabaseError extends Data.TaggedError("DatabaseError")<{
   readonly type:
-    | "unique_violation"
-    | "foreign_key_violation"
-    | "connection_error";
+  | "unique_violation"
+  | "foreign_key_violation"
+  | "connection_error";
   readonly cause: pg.DatabaseError;
 }> {
   public override toString() {
@@ -30,6 +35,7 @@ export class DatabaseError extends Data.TaggedError("DatabaseError")<{
 type Client = ReturnType<typeof drizzle<typeof schema, pg.Pool>>;
 
 type DatabaseShape = {
+  db: Client;
   use: <T>(
     fn: (client: Client) => Promise<T>,
   ) => Effect.Effect<T, DatabaseError, never>;
@@ -38,7 +44,7 @@ type DatabaseShape = {
 export class Database extends Context.Tag("Database")<
   Database,
   DatabaseShape
->() {}
+>() { }
 
 const make = (config?: PoolConfig) =>
   Effect.gen(function* () {
@@ -71,15 +77,16 @@ const make = (config?: PoolConfig) =>
       ),
     );
 
-    const db = drizzle(pool, {
+    const client = drizzle(pool, {
       schema,
       casing: "snake_case",
     });
 
     return Database.of({
+      db: client,
       use: Effect.fn("Database.use")((fn) =>
         Effect.tryPromise({
-          try: () => fn(db),
+          try: () => fn(client),
           catch: (error) => {
             if (error instanceof pg.DatabaseError) {
               switch (error.code) {

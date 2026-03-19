@@ -1,11 +1,9 @@
-import {
-  HttpApiBuilder,
-  HttpApiSwagger,
-  HttpMiddleware,
-  HttpServer,
-} from "@effect/platform";
-import { NodeHttpServer } from "@effect/platform-node";
-import { Layer } from "effect";
+import * as HttpApiBuilder from "@effect/platform/HttpApiBuilder";
+import * as HttpApiSwagger from "@effect/platform/HttpApiSwagger";
+import * as HttpMiddleware from "@effect/platform/HttpMiddleware";
+import * as HttpServer from "@effect/platform/HttpServer";
+import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
+import * as Layer from "effect/Layer";
 import { createServer } from "http";
 
 import { Api } from "@/api";

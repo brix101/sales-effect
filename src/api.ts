@@ -1,4 +1,4 @@
-import { HttpApi } from "@effect/platform";
+import * as HttpApi from "@effect/platform/HttpApi";
 
 import { CustomerApi } from "@/modules/customers/customers.api";
 import { OrderApi } from "@/modules/orders/orders.api";
@@ -10,4 +10,6 @@ export class Api extends HttpApi.make("api")
   .add(ProductApi)
   .add(CustomerApi)
   .add(OrderApi)
-  .add(UserApi) {}
+  .add(UserApi) { }
+
+//test

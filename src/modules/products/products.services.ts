@@ -1,7 +1,8 @@
 import * as Database from "@/db";
 import { products } from "@/db/schema/products";
 import { count } from "drizzle-orm";
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import { ProductsWithPagination } from "./products.domain.js";
 
 export class ProductService extends Effect.Service<ProductService>()(
@@ -54,4 +55,4 @@ export class ProductService extends Effect.Service<ProductService>()(
     }),
     dependencies: [Database.fromEnv],
   },
-) {}
+) { }

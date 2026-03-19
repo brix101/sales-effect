@@ -1,4 +1,5 @@
-import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
+import * as HttpApiGroup from "@effect/platform/HttpApiGroup";
+import * as HttpApiEndpoint from "@effect/platform/HttpApiEndpoint";
 import { CreateUserPayload, User } from "./users.domain.js";
 
 export class UserApi extends HttpApiGroup.make("Users")
@@ -7,4 +8,4 @@ export class UserApi extends HttpApiGroup.make("Users")
       .setPayload(CreateUserPayload)
       .addSuccess(User),
   )
-  .prefix("/users") {}
+  .prefix("/users") { }

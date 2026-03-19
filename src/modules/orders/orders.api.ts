@@ -1,5 +1,6 @@
 import { searchParams } from "@/modules/common/domain";
-import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
+import * as HttpApiEndpoint from "@effect/platform/HttpApiEndpoint";
+import * as HttpApiGroup from "@effect/platform/HttpApiGroup";
 import { OrdersWithPagination } from "./orders.domain.js";
 
 export class OrderApi extends HttpApiGroup.make("Orders")
@@ -8,4 +9,4 @@ export class OrderApi extends HttpApiGroup.make("Orders")
       .setUrlParams(searchParams)
       .addSuccess(OrdersWithPagination),
   )
-  .prefix("/orders") {}
+  .prefix("/orders") { }

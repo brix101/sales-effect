@@ -1,5 +1,6 @@
 import { searchParams } from "@/modules/common/domain";
-import { HttpApiEndpoint, HttpApiGroup } from "@effect/platform";
+import * as HttpApiGroup from "@effect/platform/HttpApiGroup";
+import * as HttpApiEndpoint from "@effect/platform/HttpApiEndpoint";
 import { CustomersWithPagination } from "./customers.domain.js";
 
 export class CustomerApi extends HttpApiGroup.make("Customers")
@@ -8,4 +9,4 @@ export class CustomerApi extends HttpApiGroup.make("Customers")
       .setUrlParams(searchParams)
       .addSuccess(CustomersWithPagination),
   )
-  .prefix("/customers") {}
+  .prefix("/customers") { }

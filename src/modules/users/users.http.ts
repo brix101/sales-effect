@@ -1,8 +1,9 @@
 import { Api } from "@/api";
 import * as Bcrypt from "@/bcrypt";
 import * as Database from "@/db";
-import { HttpApiBuilder } from "@effect/platform";
-import { Effect, Layer } from "effect";
+import * as HttpApiBuilder from "@effect/platform/HttpApiBuilder";
+import * as Layer from "effect/Layer";
+import * as Effect from "effect/Effect";
 import { UserService } from "./users.services.js";
 
 const HttpUser = HttpApiBuilder.group(Api, "Users", (handlers) =>
@@ -13,13 +14,13 @@ const HttpUser = HttpApiBuilder.group(Api, "Users", (handlers) =>
       return service.create(payload);
     });
   }),
-);
-const Services = Layer.mergeAll(
-  UserService.Default,
+).pipe(Layer.provide(UserService.Default))
+
+const InfrastructureLive = Layer.mergeAll(
   Database.fromEnv,
   Bcrypt.fromEnv,
 );
 
-const HttpUserLive = HttpUser.pipe(Layer.provide(Services));
+const HttpUserLive = HttpUser.pipe(Layer.provide(InfrastructureLive));
 
 export default HttpUserLive;
